@@ -2,12 +2,12 @@ import torch
 import math
 from contextlib import suppress
 import argparse
-from ray import tune
 
 from models.segmenter.factory import create_segmenter
 from models.segmenter.config import model_cfg, opt_cfg, dataset_cfg
 from models.segmenter.data.ade20k import ADE20KSegmentation
 from models.segmenter.data.loader import Loader
+from syne_tune.report import Reporter
 
 IGNORE_LABEL = 255
 
@@ -44,7 +44,6 @@ def train_one_epoch(
 
     model.train()
     data_loader.set_epoch(epoch)
-    num_updates = epoch * len(data_loader)
     for batch in data_loader:
         im = batch['im']
         if device:
@@ -72,9 +71,8 @@ def train_one_epoch(
             loss.backward()
             optimizer.step()
 
-        num_updates += 1
-
-        torch.cuda.synchronize()
+        if device:
+            torch.cuda.synchronize()
 
     return loss.item()
 
@@ -97,54 +95,64 @@ def parse_args():
         help="momentum"
     )
     parser.add_argument(
+        "--mup",
+        action="store_true",
+        help="momentum"
+    )
+    parser.add_argument(
         "--epochs",
-        type=float,
+        type=int,
         help="max_epochs_per_job",
+        required=True
+    )
+    parser.add_argument(
+        "--dim",
+        type=int,
+        help="dimensions of model",
         required=True
     )
 
     args, _ = parser.parse_known_args()
-    return args
+    return vars(args)
 
 
 def objective(config):
     if 'lr' in config.keys():
         opt_cfg['lr'] = config['lr']
+
     if 'momentum' in config.keys():
         opt_cfg['momentum'] = config['momentum']
+
+    if 'mup' in config.keys():
+        if config['mup']:
+            model_cfg['mup'] = True
+            model_cfg['attn_mult'] = 8
+    if 'dim' in config.keys():
+        model_cfg['d_model'] = config['dim']
     train_loader = create_dataset(dataset_kwargs=dataset_cfg)
     model_cfg['n_cls'] = train_loader.unwrapped.n_cls
+    print(model_cfg)
     model = create_segmenter(model_cfg=model_cfg)
+    device = 'cuda'
+    if device:
+        model.to(device)
     optimizer = torch.optim.SGD(  # Tune the optimizer
         model.parameters(), lr=opt_cfg['lr'], momentum=opt_cfg['momentum']
     )
-
-    for epoch in range(config['epochs']):
+    report = Reporter(add_cost=False)
+    for epoch in range(1, config['epochs'] + 1):
         # train for one epoch
         loss = train_one_epoch(
             model,
             train_loader,
             optimizer,
             epoch,
+            device=device
         )
-        tune.report(loss=loss)
+        report(epoch=epoch, loss=loss )
 
-
-def run_hpo():
-    search_space = {"lr": tune.loguniform(1e-4, 1e-2), "momentum": tune.uniform(0.1, 0.9), 'epochs': 25}
-
-    # 3. Start a Tune run that maximizes mean accuracy and stops after 5 iterations.
-    tuner = tune.Tuner(
-        objective,
-        tune_config=tune.TuneConfig(
-            metric="loss",
-            mode="min",
-        ),
-        param_space=search_space,
-    )
-    results = tuner.fit()
-    print("Best config is:", results.get_best_result().config)
 
 
 if __name__ == '__main__':
-    run_hpo()
+    args = parse_args()
+    objective(args)

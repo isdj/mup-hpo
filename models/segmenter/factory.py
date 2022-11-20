@@ -110,7 +110,6 @@ def create_segmenter(model_cfg):
     if model_cfg['mup']:
         model_cfg = model_cfg.copy()
         model_cfg['d_model'] *= 2
-        model_cfg['heads_dim'] *= 2
         encoder = create_vit(model_cfg)
         encoder.head.requires_grad_(False)  # we dont use the image classification head in segmenter
         decoder = create_decoder(encoder, decoder_cfg)

@@ -1,9 +1,9 @@
 from pathlib import Path
 
+import os
 from models.segmenter.data.base import BaseMMSeg
 from models.segmenter.data import utils
 from models.segmenter.config import dataset_dir
-
 
 ADE20K_CONFIG_PATH = Path(__file__).parent / "config" / "ade20k.py"
 ADE20K_CATS_PATH = Path(__file__).parent / "config" / "ade20k.yml"
@@ -25,16 +25,16 @@ class ADE20KSegmentation(BaseMMSeg):
 
     def update_default_config(self, config):
         root_dir = dataset_dir()
-        path = Path(root_dir) / "ade20k"
+        path = root_dir
         config.data_root = path
         if self.split == "train":
-            config.data.train.data_root = path / "ADEChallengeData2016"
+            config.data.train.data_root = os.path.join(path, "ADEChallengeData2016")
         elif self.split == "trainval":
-            config.data.trainval.data_root = path / "ADEChallengeData2016"
+            config.data.trainval.data_root = os.path.join(path, "ADEChallengeData2016")
         elif self.split == "val":
-            config.data.val.data_root = path / "ADEChallengeData2016"
+            config.data.val.data_root = os.path.join(path, "ADEChallengeData2016")
         elif self.split == "test":
-            config.data.test.data_root = path / "release_test"
+            config.data.test.data_root = os.path.join(path, "release_test")
         config = super().update_default_config(config)
         return config
 

@@ -1,3 +1,5 @@
+import os
+
 model_cfg = {
     "backbone": "hi",
     "decoder": {
@@ -10,7 +12,7 @@ model_cfg = {
     },
     "normalization": None,
     "d_model": 192,
-    "image_size": (160, 320),
+    "image_size": (512, 512),
     "n_layers": 12,
     "n_heads": 3,
     "patch_size": 16,
@@ -33,4 +35,7 @@ dataset_cfg = {
     'num_workers': 10,
 }
 
-dataset_dir = lambda: '/home/mobileye/isaacd/datasets/'
+LOCAL_LOC, S3_LOC = '', ''  # local dataset location and aws dataset location
+dataset_dir = lambda: os.environ[
+    "SM_CHANNEL_DATA"] if "TRAINING_JOB_NAME" in os.environ else LOCAL_LOC  # using FastFileMode in AWS
+inputs = {'DATA': S3_LOC}
